@@ -228,6 +228,10 @@ func (d *DockerClientService) Deploy(ctx context.Context, c container.Container,
 	return d.deployManager.Start(ctx, c, req)
 }
 
+func (d *DockerClientService) DeployComposeServices(ctx context.Context, c container.Container, req deploy.Request) ([]string, error) {
+	return d.deployManager.ComposeServices(ctx, req)
+}
+
 func (d *DockerClientService) DeployStatus(ctx context.Context, runID string) (deploy.Status, error) {
 	return d.deployManager.Status(runID)
 }

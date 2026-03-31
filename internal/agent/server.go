@@ -469,6 +469,14 @@ func (s *server) GetNotificationStats(ctx context.Context, req *pb.GetNotificati
 
 func (s *server) DeployContainer(ctx context.Context, req *structpb.Struct) (*structpb.Struct, error) {
 	containerID := req.Fields["containerId"].GetStringValue()
+	services := make([]string, 0)
+	if list := req.Fields["services"].GetListValue(); list != nil {
+		for _, v := range list.Values {
+			if item := v.GetStringValue(); item != "" {
+				services = append(services, item)
+			}
+		}
+	}
 	c, err := s.service.FindContainer(ctx, containerID, container.ContainerLabels{})
 	if err != nil {
 		return nil, status.Error(codes.NotFound, err.Error())
@@ -480,6 +488,7 @@ func (s *server) DeployContainer(ctx context.Context, req *structpb.Struct) (*st
 		Branch:      req.Fields["branch"].GetStringValue(),
 		ComposeFile: req.Fields["composeFile"].GetStringValue(),
 		Service:     req.Fields["service"].GetStringValue(),
+		Services:    services,
 		GitUsername: req.Fields["gitUsername"].GetStringValue(),
 		GitToken:    req.Fields["gitToken"].GetStringValue(),
 		Bootstrap:   req.Fields["bootstrap"].GetBoolValue(),

@@ -49,6 +49,10 @@ func (c *ContainerService) Deploy(ctx context.Context, req deploy.Request) (stri
 	return c.clientService.Deploy(ctx, c.Container, req)
 }
 
+func (c *ContainerService) DeployComposeServices(ctx context.Context, req deploy.Request) ([]string, error) {
+	return c.clientService.DeployComposeServices(ctx, c.Container, req)
+}
+
 func (c *ContainerService) DeployStatus(ctx context.Context, runID string) (deploy.Status, error) {
 	return c.clientService.DeployStatus(ctx, runID)
 }

@@ -33,6 +33,7 @@ type ClientService interface {
 
 	// Deploy
 	Deploy(context.Context, container.Container, deploy.Request) (string, error)
+	DeployComposeServices(context.Context, container.Container, deploy.Request) ([]string, error)
 	DeployStatus(context.Context, string) (deploy.Status, error)
 	DeployLogs(context.Context, string, int) (deploy.LogChunk, error)
 	DeployRecent(context.Context, string, int) ([]deploy.Status, error)

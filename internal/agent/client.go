@@ -570,6 +570,10 @@ func (c *Client) GetNotificationStats(ctx context.Context) ([]types.Subscription
 }
 
 func (c *Client) Deploy(ctx context.Context, req deploy.Request) (string, error) {
+	services := make([]any, 0, len(req.Services))
+	for _, service := range req.Services {
+		services = append(services, service)
+	}
 	input, _ := structpb.NewStruct(map[string]any{
 		"containerId": req.ContainerID,
 		"projectPath": req.ProjectPath,
@@ -577,6 +581,7 @@ func (c *Client) Deploy(ctx context.Context, req deploy.Request) (string, error)
 		"branch":      req.Branch,
 		"composeFile": req.ComposeFile,
 		"service":     req.Service,
+		"services":    services,
 		"gitUsername": req.GitUsername,
 		"gitToken":    req.GitToken,
 		"bootstrap":   req.Bootstrap,

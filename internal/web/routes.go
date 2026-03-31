@@ -149,6 +149,9 @@ func createRouter(h *handler) *chi.Mux {
 					r.Get("/hosts/{host}/containers/{id}/deploy/{runId}", h.deployStatus)
 					r.Get("/hosts/{host}/containers/{id}/deploy/{runId}/logs", h.deployLogs)
 					r.Get("/hosts/{host}/containers/{id}/deploy/history", h.deployHistory)
+					r.Get("/hosts/{host}/containers/{id}/deploy/config", h.deployConfig)
+					r.Post("/hosts/{host}/containers/{id}/deploy/config", h.saveDeployConfig)
+					r.Post("/hosts/{host}/containers/{id}/deploy/services", h.deployComposeServices)
 					r.Post("/hosts/{host}/containers/{id}/deploy/credentials", h.saveDeployCredentials)
 				}
 				if h.config.EnableShell {

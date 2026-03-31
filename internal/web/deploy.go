@@ -14,11 +14,13 @@ import (
 )
 
 type deployRequest struct {
+	ComposeProject string `json:"composeProject"`
 	ProjectPath string `json:"projectPath"`
 	RepoURL     string `json:"repoUrl"`
 	Branch      string `json:"branch"`
 	ComposeFile string `json:"composeFile"`
 	Service     string `json:"service"`
+	Services    []string `json:"services"`
 	GitUsername string `json:"gitUsername"`
 	GitToken    string `json:"gitToken"`
 	Bootstrap   bool   `json:"bootstrap"`
@@ -27,6 +29,15 @@ type deployRequest struct {
 type deployCredentialRequest struct {
 	GitUsername string `json:"gitUsername"`
 	GitToken    string `json:"gitToken"`
+}
+
+type deployConfigRequest struct {
+	ComposeProject string `json:"composeProject"`
+	ProjectPath    string `json:"projectPath"`
+	RepoURL        string `json:"repoUrl"`
+	Branch         string `json:"branch"`
+	ComposeFile    string `json:"composeFile"`
+	Services       []string `json:"services"`
 }
 
 func (h *handler) deployContainer(w http.ResponseWriter, r *http.Request) {
@@ -57,14 +68,40 @@ func (h *handler) deployContainer(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	composeProject := input.ComposeProject
+	if composeProject == "" {
+		composeProject = detectComposeProject(containerService.Container.Labels)
+	}
+
+	if composeProject != "" {
+		if saved, ok := h.deployProjectStore().Get(hostKey(r), composeProject); ok {
+			if input.ProjectPath == "" {
+				input.ProjectPath = saved.ProjectPath
+			}
+			if input.RepoURL == "" {
+				input.RepoURL = saved.RepoURL
+			}
+			if input.Branch == "" {
+				input.Branch = saved.Branch
+			}
+			if input.ComposeFile == "" {
+				input.ComposeFile = saved.ComposeFile
+			}
+			if len(input.Services) == 0 {
+				input.Services = saved.Services
+			}
+		}
+	}
 
 	runID, err := containerService.Deploy(r.Context(), deploy.Request{
 		ContainerID: containerService.Container.ID,
+		ComposeProject: composeProject,
 		ProjectPath: input.ProjectPath,
 		RepoURL:     input.RepoURL,
 		Branch:      input.Branch,
 		ComposeFile: input.ComposeFile,
 		Service:     input.Service,
+		Services:    input.Services,
 		GitUsername: input.GitUsername,
 		GitToken:    input.GitToken,
 		Bootstrap:   input.Bootstrap,
@@ -76,7 +113,121 @@ func (h *handler) deployContainer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if composeProject != "" && input.ProjectPath != "" && input.RepoURL != "" {
+		_ = h.deployProjectStore().Save(deploy.ProjectConfig{
+			Host:           hostKey(r),
+			ComposeProject: composeProject,
+			ProjectPath:    input.ProjectPath,
+			RepoURL:        input.RepoURL,
+			Branch:         input.Branch,
+			ComposeFile:    input.ComposeFile,
+			Services:       input.Services,
+		})
+	}
+
 	writeJSON(w, http.StatusAccepted, map[string]string{"runId": runID})
+}
+
+func (h *handler) deployComposeServices(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	userLabels, permit, _ := h.actionAuth(r)
+	if !permit {
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+		return
+	}
+	containerService, err := h.hostService.FindContainer(hostKey(r), id, userLabels)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	var input deployRequest
+	if input.ComposeProject != "" {
+		if saved, ok := h.deployProjectStore().Get(hostKey(r), input.ComposeProject); ok {
+			if input.ProjectPath == "" {
+				input.ProjectPath = saved.ProjectPath
+			}
+			if input.ComposeFile == "" {
+				input.ComposeFile = saved.ComposeFile
+			}
+		}
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	services, err := containerService.DeployComposeServices(r.Context(), deploy.Request{
+		ProjectPath: input.ProjectPath,
+		ComposeFile: input.ComposeFile,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"services": services})
+}
+
+func (h *handler) deployConfig(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	userLabels, permit, _ := h.actionAuth(r)
+	if !permit {
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+		return
+	}
+	containerService, err := h.hostService.FindContainer(hostKey(r), id, userLabels)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	composeProject := r.URL.Query().Get("composeProject")
+	if composeProject == "" {
+		composeProject = detectComposeProject(containerService.Container.Labels)
+	}
+	if composeProject == "" {
+		writeJSON(w, http.StatusOK, map[string]any{"composeProject": "", "config": nil})
+		return
+	}
+	config, ok := h.deployProjectStore().Get(hostKey(r), composeProject)
+	if !ok {
+		writeJSON(w, http.StatusOK, map[string]any{"composeProject": composeProject, "config": nil})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"composeProject": composeProject, "config": config})
+}
+
+func (h *handler) saveDeployConfig(w http.ResponseWriter, r *http.Request) {
+	_, permit, _ := h.actionAuth(r)
+	if !permit {
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+		return
+	}
+	var input deployConfigRequest
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if input.ComposeProject == "" || input.ProjectPath == "" || input.RepoURL == "" {
+		http.Error(w, "composeProject, projectPath, repoUrl are required", http.StatusBadRequest)
+		return
+	}
+	if input.Branch == "" {
+		input.Branch = "main"
+	}
+	if input.ComposeFile == "" {
+		input.ComposeFile = "docker-compose.yml"
+	}
+	if err := h.deployProjectStore().Save(deploy.ProjectConfig{
+		Host:           hostKey(r),
+		ComposeProject: input.ComposeProject,
+		ProjectPath:    input.ProjectPath,
+		RepoURL:        input.RepoURL,
+		Branch:         input.Branch,
+		ComposeFile:    input.ComposeFile,
+		Services:       input.Services,
+	}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	http.Error(w, "", http.StatusNoContent)
 }
 
 func (h *handler) deployStatus(w http.ResponseWriter, r *http.Request) {
@@ -207,5 +358,22 @@ func (h *handler) deployCredentialStore() *deploy.CredentialStore {
 		secret = "dozzle-default-deploy-secret-change-me"
 	}
 	return deploy.NewCredentialStore("./data/deploy_credentials.enc", secret)
+}
+
+func (h *handler) deployProjectStore() *deploy.ProjectStore {
+	return deploy.NewProjectStore("./data/deploy_projects.json")
+}
+
+func detectComposeProject(labels map[string]string) string {
+	if labels == nil {
+		return ""
+	}
+	if v := labels["com.docker.compose.project"]; v != "" {
+		return v
+	}
+	if v := labels["com.docker.stack.namespace"]; v != "" {
+		return v
+	}
+	return ""
 }
 

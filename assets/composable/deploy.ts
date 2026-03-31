@@ -1,11 +1,12 @@
 import { Container } from "@/models/Container";
 
 export type DeployPayload = {
+  composeProject?: string;
   projectPath: string;
   repoUrl: string;
   branch: string;
   composeFile: string;
-  service: string;
+  services: string[];
   gitUsername: string;
   gitToken: string;
   bootstrap: boolean;
@@ -41,13 +42,20 @@ const labels = {
 export const useDeploy = (container: Ref<Container>) => {
   const basePath = computed(() => `/api/hosts/${container.value.host}/containers/${container.value.id}/deploy`);
 
+  const composeProject = computed(
+    () => container.value.labels["com.docker.compose.project"] || container.value.labels["com.docker.stack.namespace"] || "",
+  );
+
   const defaults = computed(() => ({
     enabled: container.value.labels[labels.enabled] === "true",
     projectPath: container.value.labels[labels.path] ?? "",
     repoUrl: container.value.labels[labels.repo] ?? "",
     branch: container.value.labels[labels.branch] ?? "main",
     composeFile: container.value.labels[labels.compose] ?? "docker-compose.yml",
-    service: container.value.labels[labels.service] ?? "",
+    services: (container.value.labels[labels.service] ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
     gitUsername: "x-access-token",
     bootstrap: true,
   }));
@@ -71,7 +79,7 @@ export const useDeploy = (container: Ref<Container>) => {
     const response = await fetch(withBase(basePath.value), {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, composeProject: payload.composeProject ?? composeProject.value }),
     });
     if (!response.ok) {
       throw new Error(await response.text());
@@ -104,6 +112,54 @@ export const useDeploy = (container: Ref<Container>) => {
     return items;
   }
 
-  return { defaults, start, status, logs, history };
+  async function listComposeServices(projectPath: string, composeFile: string) {
+    const response = await fetch(withBase(`${basePath.value}/services`), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ composeProject: composeProject.value, projectPath, composeFile }),
+    });
+    if (!response.ok) return [];
+    const { services } = (await response.json()) as { services: string[] };
+    return services;
+  }
+
+  async function getConfig() {
+    const query = composeProject.value ? `?composeProject=${encodeURIComponent(composeProject.value)}` : "";
+    const response = await fetch(withBase(`${basePath.value}/config${query}`));
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    return (await response.json()) as {
+      composeProject: string;
+      config: {
+        composeProject: string;
+        projectPath: string;
+        repoUrl: string;
+        branch: string;
+        composeFile: string;
+        services?: string[];
+      } | null;
+    };
+  }
+
+  async function saveConfig(payload: {
+    composeProject: string;
+    projectPath: string;
+    repoUrl: string;
+    branch: string;
+    composeFile: string;
+    services: string[];
+  }) {
+    const response = await fetch(withBase(`${basePath.value}/config`), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+  }
+
+  return { defaults, composeProject, start, status, logs, history, listComposeServices, getConfig, saveConfig };
 };
 

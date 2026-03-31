@@ -196,6 +196,10 @@ func (k *K8sClientService) Deploy(ctx context.Context, c container.Container, re
 	return "", errors.New("deploy is not supported for k8s mode")
 }
 
+func (k *K8sClientService) DeployComposeServices(ctx context.Context, c container.Container, req deploy.Request) ([]string, error) {
+	return nil, errors.New("deploy is not supported for k8s mode")
+}
+
 func (k *K8sClientService) DeployStatus(ctx context.Context, runID string) (deploy.Status, error) {
 	return deploy.Status{}, errors.New("deploy is not supported for k8s mode")
 }

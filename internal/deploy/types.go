@@ -13,11 +13,13 @@ const (
 
 type Request struct {
 	ContainerID   string `json:"containerId"`
+	ComposeProject string `json:"composeProject"`
 	ProjectPath   string `json:"projectPath"`
 	RepoURL       string `json:"repoUrl"`
 	Branch        string `json:"branch"`
 	ComposeFile   string `json:"composeFile"`
 	Service       string `json:"service"`
+	Services      []string `json:"services"`
 	GitUsername   string `json:"gitUsername"`
 	GitToken      string `json:"gitToken"`
 	Bootstrap     bool   `json:"bootstrap"`

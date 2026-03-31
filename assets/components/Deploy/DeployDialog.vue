@@ -3,6 +3,9 @@
     <div>
       <h2 class="text-xl font-semibold">Deploy {{ container.name }}</h2>
       <p class="text-base-content/60 text-sm">Git pull + docker compose up -d --build</p>
+      <p v-if="deploy.composeProject.value" class="text-primary text-xs">
+        Compose project: {{ deploy.composeProject.value }} (project-level deploy)
+      </p>
     </div>
 
     <fieldset class="fieldset">
@@ -25,8 +28,12 @@
         <input v-model="form.branch" class="input input-bordered w-full" />
       </fieldset>
       <fieldset class="fieldset">
-        <legend class="fieldset-legend">Service(optional)</legend>
-        <input v-model="form.service" class="input input-bordered w-full" />
+        <legend class="fieldset-legend">Services to rebuild (optional)</legend>
+        <input
+          v-model="servicesInput"
+          class="input input-bordered w-full"
+          placeholder="server,worker (empty = all services)"
+        />
       </fieldset>
     </div>
 
@@ -55,7 +62,18 @@
       <button class="btn btn-primary btn-sm" :disabled="running || !form.projectPath" @click="runDeploy">
         {{ running ? "Deploying..." : "Deploy" }}
       </button>
+      <button class="btn btn-outline btn-sm" :disabled="loadingServices" @click="loadServices">Load Services</button>
       <button class="btn btn-ghost btn-sm" :disabled="loadingHistory" @click="refreshHistory">Refresh History</button>
+    </div>
+
+    <div v-if="availableServices.length" class="rounded border border-base-content/20 p-2">
+      <div class="mb-1 text-sm font-semibold">Detected compose services</div>
+      <div class="flex flex-wrap gap-2">
+        <label v-for="service in availableServices" :key="service" class="label cursor-pointer gap-1">
+          <input type="checkbox" class="checkbox checkbox-xs" :value="service" v-model="selectedServices" />
+          <span class="label-text text-sm">{{ service }}</span>
+        </label>
+      </div>
     </div>
 
     <div v-if="currentStatus" class="rounded border border-base-content/20 p-2 text-sm">
@@ -91,21 +109,47 @@ const deploy = useDeploy(toRef(() => container));
 
 const running = ref(false);
 const loadingHistory = ref(false);
+const loadingServices = ref(false);
+const loadingConfig = ref(false);
 const currentRunId = ref("");
 const currentStatus = ref<Awaited<ReturnType<typeof deploy.status>> | null>(null);
 const recentLogs = ref<string[]>([]);
 const historyItems = ref<Awaited<ReturnType<typeof deploy.history>>>([]);
+const availableServices = ref<string[]>([]);
+const selectedServices = ref<string[]>([]);
+const servicesInput = ref("");
 
 const form = reactive({
   projectPath: deploy.defaults.value.projectPath,
   repoUrl: deploy.defaults.value.repoUrl,
   branch: deploy.defaults.value.branch,
   composeFile: deploy.defaults.value.composeFile,
-  service: deploy.defaults.value.service,
   gitUsername: deploy.defaults.value.gitUsername,
   gitToken: "",
   bootstrap: deploy.defaults.value.bootstrap,
 });
+selectedServices.value = [...deploy.defaults.value.services];
+servicesInput.value = deploy.defaults.value.services.join(",");
+
+watch(selectedServices, (value) => {
+  if (value.length > 0) {
+    servicesInput.value = value.join(",");
+  }
+});
+
+async function loadServices() {
+  loadingServices.value = true;
+  try {
+    availableServices.value = await deploy.listComposeServices(form.projectPath, form.composeFile);
+    if (availableServices.value.length === 0) {
+      showToast({ type: "info", title: "Deploy", message: "No compose services detected automatically" });
+    }
+  } catch {
+    showToast({ type: "error", title: "Deploy", message: "Failed to load compose services" });
+  } finally {
+    loadingServices.value = false;
+  }
+}
 
 async function refreshHistory() {
   loadingHistory.value = true;
@@ -115,6 +159,26 @@ async function refreshHistory() {
     showToast({ type: "error", title: "Deploy", message: "Failed to load deploy history" });
   } finally {
     loadingHistory.value = false;
+  }
+}
+
+async function loadConfig() {
+  loadingConfig.value = true;
+  try {
+    const result = await deploy.getConfig();
+    if (result?.config) {
+      form.projectPath = result.config.projectPath || form.projectPath;
+      form.repoUrl = result.config.repoUrl || form.repoUrl;
+      form.branch = result.config.branch || form.branch;
+      form.composeFile = result.config.composeFile || form.composeFile;
+      selectedServices.value = result.config.services ?? selectedServices.value;
+      servicesInput.value = selectedServices.value.join(",");
+      showToast({ type: "info", title: "Deploy", message: "Saved compose deploy config loaded" });
+    }
+  } catch {
+    // ignore quietly on first run
+  } finally {
+    loadingConfig.value = false;
   }
 }
 
@@ -142,15 +206,32 @@ async function runDeploy() {
   recentLogs.value = [];
   try {
     const { runId } = await deploy.start({
+      composeProject: deploy.composeProject.value,
       projectPath: form.projectPath,
       repoUrl: form.repoUrl,
       branch: form.branch,
       composeFile: form.composeFile,
-      service: form.service,
+      services: servicesInput.value
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
       gitUsername: form.gitUsername,
       gitToken: form.gitToken,
       bootstrap: form.bootstrap,
     });
+    if (deploy.composeProject.value) {
+      await deploy.saveConfig({
+        composeProject: deploy.composeProject.value,
+        projectPath: form.projectPath,
+        repoUrl: form.repoUrl,
+        branch: form.branch,
+        composeFile: form.composeFile,
+        services: servicesInput.value
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+      });
+    }
     currentRunId.value = runId;
     currentStatus.value = await deploy.status(runId);
     showToast({ type: "info", title: "Deploy", message: `Started (${runId})` });
@@ -163,6 +244,10 @@ async function runDeploy() {
   }
 }
 
-onMounted(refreshHistory);
+onMounted(async () => {
+  await loadConfig();
+  await refreshHistory();
+  await loadServices();
+});
 </script>
 

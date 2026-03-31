@@ -3,6 +3,7 @@ package container_support
 import (
 	"context"
 	"io"
+	"strings"
 	"sync/atomic"
 
 	"time"
@@ -96,6 +97,24 @@ func (a *agentService) GetNotificationStats(ctx context.Context) ([]types.Subscr
 func (a *agentService) Deploy(ctx context.Context, c container.Container, req deploy.Request) (string, error) {
 	req.ContainerID = c.ID
 	return a.client.Deploy(ctx, req)
+}
+
+func (a *agentService) DeployComposeServices(ctx context.Context, c container.Container, req deploy.Request) ([]string, error) {
+	if len(req.Services) > 0 {
+		return req.Services, nil
+	}
+	if req.Service != "" {
+		parts := strings.Split(req.Service, ",")
+		services := make([]string, 0, len(parts))
+		for _, part := range parts {
+			part = strings.TrimSpace(part)
+			if part != "" {
+				services = append(services, part)
+			}
+		}
+		return services, nil
+	}
+	return []string{}, nil
 }
 
 func (a *agentService) DeployStatus(ctx context.Context, runID string) (deploy.Status, error) {

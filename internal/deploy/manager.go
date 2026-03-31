@@ -157,6 +157,9 @@ func resolveRequest(c container.Container, req Request) (Request, error) {
 	if req.Service == "" {
 		req.Service = labels[labelService]
 	}
+	if len(req.Services) == 0 && req.Service != "" {
+		req.Services = []string{req.Service}
+	}
 
 	if req.Branch == "" {
 		req.Branch = "main"
@@ -175,6 +178,34 @@ func resolveRequest(c container.Container, req Request) (Request, error) {
 	}
 
 	return req, nil
+}
+
+func (m *Manager) ComposeServices(ctx context.Context, req Request) ([]string, error) {
+	projectPath := req.ProjectPath
+	if projectPath == "" {
+		return nil, errors.New("projectPath is required")
+	}
+	composeArgs := []string{}
+	if req.ComposeFile != "" {
+		composeArgs = append(composeArgs, "-f", req.ComposeFile)
+	}
+	composeArgs = append(composeArgs, "config", "--services")
+
+	lines, err := m.captureCommand(ctx, projectPath, "docker", append([]string{"compose"}, composeArgs...)...)
+	if err != nil {
+		lines, err = m.captureCommand(ctx, projectPath, "docker-compose", composeArgs...)
+		if err != nil {
+			return nil, err
+		}
+	}
+	services := make([]string, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			services = append(services, line)
+		}
+	}
+	return services, nil
 }
 
 func (m *Manager) execute(ctx context.Context, c container.Container, req Request, runID string) {
@@ -243,19 +274,56 @@ func (m *Manager) runPipeline(ctx context.Context, runID string, req Request) (i
 	if req.ComposeFile != "" {
 		composeArgs = append(composeArgs, "-f", req.ComposeFile)
 	}
-	composeArgs = append(composeArgs, "up", "-d", "--build")
-	if req.Service != "" {
-		composeArgs = append(composeArgs, req.Service)
-	}
+	upArgs := append([]string{}, composeArgs...)
+	upArgs = append(upArgs, "up", "-d", "--build", "--force-recreate")
+	if len(req.Services) > 0 {
+		// Stop/remove target services first to avoid container_name conflicts.
+		stopArgs := append([]string{}, composeArgs...)
+		stopArgs = append(stopArgs, "stop")
+		stopArgs = append(stopArgs, req.Services...)
+		_ = m.runComposeCommand(ctx, runID, projectPath, stopArgs...)
 
-	// Prefer docker compose plugin, fallback to docker-compose binary.
-	if err := m.runCommand(ctx, runID, projectPath, "docker", append([]string{"compose"}, composeArgs...)...); err != nil {
-		m.appendLine(runID, "docker compose failed, trying docker-compose fallback")
-		if err2 := m.runCommand(ctx, runID, projectPath, "docker-compose", composeArgs...); err2 != nil {
-			return 1, err
-		}
+		rmArgs := append([]string{}, composeArgs...)
+		rmArgs = append(rmArgs, "rm", "-f")
+		rmArgs = append(rmArgs, req.Services...)
+		_ = m.runComposeCommand(ctx, runID, projectPath, rmArgs...)
+
+		upArgs = append(upArgs, req.Services...)
+	}
+	if err := m.runComposeCommand(ctx, runID, projectPath, upArgs...); err != nil {
+		return 1, err
 	}
 	return 0, nil
+}
+
+func (m *Manager) runComposeCommand(ctx context.Context, runID, projectPath string, args ...string) error {
+	// Prefer docker compose plugin, fallback to docker-compose binary.
+	if err := m.runCommand(ctx, runID, projectPath, "docker", append([]string{"compose"}, args...)...); err != nil {
+		m.appendLine(runID, "docker compose failed, trying docker-compose fallback")
+		if err2 := m.runCommand(ctx, runID, projectPath, "docker-compose", args...); err2 != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *Manager) captureCommand(ctx context.Context, dir, name string, args ...string) ([]string, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("%s %s failed: %w: %s", name, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+	}
+	raw := strings.Split(strings.ReplaceAll(string(out), "\r\n", "\n"), "\n")
+	lines := make([]string, 0, len(raw))
+	for _, line := range raw {
+		if strings.TrimSpace(line) != "" {
+			lines = append(lines, line)
+		}
+	}
+	return lines, nil
 }
 
 func authenticatedRepoURL(repoURL, username, token string) string {
