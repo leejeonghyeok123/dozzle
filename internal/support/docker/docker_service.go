@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/amir20/dozzle/internal/container"
+	"github.com/amir20/dozzle/internal/deploy"
 	"github.com/amir20/dozzle/internal/docker"
 
 	"github.com/docker/docker/pkg/stdcopy"
@@ -14,15 +15,17 @@ import (
 )
 
 type DockerClientService struct {
-	client container.Client
-	store  *container.ContainerStore
+	client        container.Client
+	store         *container.ContainerStore
+	deployManager *deploy.Manager
 }
 
 func NewDockerClientService(client container.Client, labels container.ContainerLabels) *DockerClientService {
 	statsCollector := docker.NewDockerStatsCollector(client, labels)
 	return &DockerClientService{
-		client: client,
-		store:  container.NewContainerStore(context.Background(), client, statsCollector, labels),
+		client:        client,
+		store:         container.NewContainerStore(context.Background(), client, statsCollector, labels),
+		deployManager: deploy.NewManager(),
 	}
 }
 
@@ -218,4 +221,21 @@ func (d *DockerClientService) Exec(ctx context.Context, c container.Container, c
 	wg.Wait()
 
 	return nil
+}
+
+func (d *DockerClientService) Deploy(ctx context.Context, c container.Container, req deploy.Request) (string, error) {
+	req.ContainerID = c.ID
+	return d.deployManager.Start(ctx, c, req)
+}
+
+func (d *DockerClientService) DeployStatus(ctx context.Context, runID string) (deploy.Status, error) {
+	return d.deployManager.Status(runID)
+}
+
+func (d *DockerClientService) DeployLogs(ctx context.Context, runID string, offset int) (deploy.LogChunk, error) {
+	return d.deployManager.Logs(runID, offset)
+}
+
+func (d *DockerClientService) DeployRecent(ctx context.Context, containerID string, limit int) ([]deploy.Status, error) {
+	return d.deployManager.Recent(containerID, limit), nil
 }

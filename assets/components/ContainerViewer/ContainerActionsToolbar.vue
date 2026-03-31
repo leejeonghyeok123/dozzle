@@ -154,6 +154,12 @@
             {{ $t("toolbar.restart") }}
           </button>
         </li>
+        <li>
+          <button @click="openDeployDialog()">
+            <octicon:download-24 />
+            Deploy
+          </button>
+        </li>
       </template>
 
       <template v-if="enableShell && !historical">
@@ -182,6 +188,7 @@ import { Container } from "@/models/Container";
 import { allLevels } from "@/composable/logContext";
 import LogAnalytics from "../LogViewer/LogAnalytics.vue";
 import Terminal from "@/components/Terminal.vue";
+import DeployDialog from "@/components/Deploy/DeployDialog.vue";
 
 const { showSearch } = useSearchFilter();
 const { enableActions, enableShell, enableDownload } = config;
@@ -347,6 +354,10 @@ const hideMenu = (e: MouseEvent) => {
     }, 50);
   }
 };
+
+function openDeployDialog() {
+  showDrawer(DeployDialog, { container }, "lg");
+}
 </script>
 
 <style scoped>

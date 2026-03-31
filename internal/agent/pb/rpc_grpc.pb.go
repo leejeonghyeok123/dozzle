@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -33,6 +34,10 @@ const (
 	AgentService_ContainerAttach_FullMethodName          = "/protobuf.AgentService/ContainerAttach"
 	AgentService_UpdateNotificationConfig_FullMethodName = "/protobuf.AgentService/UpdateNotificationConfig"
 	AgentService_GetNotificationStats_FullMethodName     = "/protobuf.AgentService/GetNotificationStats"
+	AgentService_DeployContainer_FullMethodName          = "/protobuf.AgentService/DeployContainer"
+	AgentService_GetDeployStatus_FullMethodName          = "/protobuf.AgentService/GetDeployStatus"
+	AgentService_GetDeployLogs_FullMethodName            = "/protobuf.AgentService/GetDeployLogs"
+	AgentService_GetRecentDeploys_FullMethodName         = "/protobuf.AgentService/GetRecentDeploys"
 )
 
 // AgentServiceClient is the client API for AgentService service.
@@ -53,6 +58,10 @@ type AgentServiceClient interface {
 	ContainerAttach(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ContainerAttachRequest, ContainerAttachResponse], error)
 	UpdateNotificationConfig(ctx context.Context, in *UpdateNotificationConfigRequest, opts ...grpc.CallOption) (*UpdateNotificationConfigResponse, error)
 	GetNotificationStats(ctx context.Context, in *GetNotificationStatsRequest, opts ...grpc.CallOption) (*GetNotificationStatsResponse, error)
+	DeployContainer(ctx context.Context, in *structpb.Struct, opts ...grpc.CallOption) (*structpb.Struct, error)
+	GetDeployStatus(ctx context.Context, in *structpb.Struct, opts ...grpc.CallOption) (*structpb.Struct, error)
+	GetDeployLogs(ctx context.Context, in *structpb.Struct, opts ...grpc.CallOption) (*structpb.Struct, error)
+	GetRecentDeploys(ctx context.Context, in *structpb.Struct, opts ...grpc.CallOption) (*structpb.Struct, error)
 }
 
 type agentServiceClient struct {
@@ -263,6 +272,46 @@ func (c *agentServiceClient) GetNotificationStats(ctx context.Context, in *GetNo
 	return out, nil
 }
 
+func (c *agentServiceClient) DeployContainer(ctx context.Context, in *structpb.Struct, opts ...grpc.CallOption) (*structpb.Struct, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(structpb.Struct)
+	err := c.cc.Invoke(ctx, AgentService_DeployContainer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) GetDeployStatus(ctx context.Context, in *structpb.Struct, opts ...grpc.CallOption) (*structpb.Struct, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(structpb.Struct)
+	err := c.cc.Invoke(ctx, AgentService_GetDeployStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) GetDeployLogs(ctx context.Context, in *structpb.Struct, opts ...grpc.CallOption) (*structpb.Struct, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(structpb.Struct)
+	err := c.cc.Invoke(ctx, AgentService_GetDeployLogs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) GetRecentDeploys(ctx context.Context, in *structpb.Struct, opts ...grpc.CallOption) (*structpb.Struct, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(structpb.Struct)
+	err := c.cc.Invoke(ctx, AgentService_GetRecentDeploys_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AgentServiceServer is the server API for AgentService service.
 // All implementations must embed UnimplementedAgentServiceServer
 // for forward compatibility.
@@ -281,6 +330,10 @@ type AgentServiceServer interface {
 	ContainerAttach(grpc.BidiStreamingServer[ContainerAttachRequest, ContainerAttachResponse]) error
 	UpdateNotificationConfig(context.Context, *UpdateNotificationConfigRequest) (*UpdateNotificationConfigResponse, error)
 	GetNotificationStats(context.Context, *GetNotificationStatsRequest) (*GetNotificationStatsResponse, error)
+	DeployContainer(context.Context, *structpb.Struct) (*structpb.Struct, error)
+	GetDeployStatus(context.Context, *structpb.Struct) (*structpb.Struct, error)
+	GetDeployLogs(context.Context, *structpb.Struct) (*structpb.Struct, error)
+	GetRecentDeploys(context.Context, *structpb.Struct) (*structpb.Struct, error)
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -332,6 +385,18 @@ func (UnimplementedAgentServiceServer) UpdateNotificationConfig(context.Context,
 }
 func (UnimplementedAgentServiceServer) GetNotificationStats(context.Context, *GetNotificationStatsRequest) (*GetNotificationStatsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetNotificationStats not implemented")
+}
+func (UnimplementedAgentServiceServer) DeployContainer(context.Context, *structpb.Struct) (*structpb.Struct, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeployContainer not implemented")
+}
+func (UnimplementedAgentServiceServer) GetDeployStatus(context.Context, *structpb.Struct) (*structpb.Struct, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetDeployStatus not implemented")
+}
+func (UnimplementedAgentServiceServer) GetDeployLogs(context.Context, *structpb.Struct) (*structpb.Struct, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetDeployLogs not implemented")
+}
+func (UnimplementedAgentServiceServer) GetRecentDeploys(context.Context, *structpb.Struct) (*structpb.Struct, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRecentDeploys not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
 func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
@@ -542,6 +607,66 @@ func _AgentService_GetNotificationStats_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_DeployContainer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(structpb.Struct)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).DeployContainer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: AgentService_DeployContainer_FullMethodName}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).DeployContainer(ctx, req.(*structpb.Struct))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_GetDeployStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(structpb.Struct)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetDeployStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: AgentService_GetDeployStatus_FullMethodName}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetDeployStatus(ctx, req.(*structpb.Struct))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_GetDeployLogs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(structpb.Struct)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetDeployLogs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: AgentService_GetDeployLogs_FullMethodName}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetDeployLogs(ctx, req.(*structpb.Struct))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_GetRecentDeploys_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(structpb.Struct)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetRecentDeploys(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: AgentService_GetRecentDeploys_FullMethodName}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetRecentDeploys(ctx, req.(*structpb.Struct))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -572,6 +697,22 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetNotificationStats",
 			Handler:    _AgentService_GetNotificationStats_Handler,
+		},
+		{
+			MethodName: "DeployContainer",
+			Handler:    _AgentService_DeployContainer_Handler,
+		},
+		{
+			MethodName: "GetDeployStatus",
+			Handler:    _AgentService_GetDeployStatus_Handler,
+		},
+		{
+			MethodName: "GetDeployLogs",
+			Handler:    _AgentService_GetDeployLogs_Handler,
+		},
+		{
+			MethodName: "GetRecentDeploys",
+			Handler:    _AgentService_GetRecentDeploys_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

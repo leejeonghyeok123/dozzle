@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/amir20/dozzle/internal/container"
+	"github.com/amir20/dozzle/internal/deploy"
 )
 
 type ContainerService struct {
@@ -42,4 +43,20 @@ func (c *ContainerService) Attach(ctx context.Context, events container.ExecEven
 
 func (c *ContainerService) Exec(ctx context.Context, cmd []string, events container.ExecEventReader, stdout io.Writer) error {
 	return c.clientService.Exec(ctx, c.Container, cmd, events, stdout)
+}
+
+func (c *ContainerService) Deploy(ctx context.Context, req deploy.Request) (string, error) {
+	return c.clientService.Deploy(ctx, c.Container, req)
+}
+
+func (c *ContainerService) DeployStatus(ctx context.Context, runID string) (deploy.Status, error) {
+	return c.clientService.DeployStatus(ctx, runID)
+}
+
+func (c *ContainerService) DeployLogs(ctx context.Context, runID string, offset int) (deploy.LogChunk, error) {
+	return c.clientService.DeployLogs(ctx, runID, offset)
+}
+
+func (c *ContainerService) DeployRecent(ctx context.Context, limit int) ([]deploy.Status, error) {
+	return c.clientService.DeployRecent(ctx, c.Container.ID, limit)
 }

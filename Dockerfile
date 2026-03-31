@@ -37,7 +37,8 @@ COPY internal ./internal
 COPY types ./types
 COPY main.go ./
 COPY protos ./protos
-COPY shared_key.pem shared_cert.pem ./
+COPY certs/dozzle_key.pem certs/dozzle_cert.pem ./
+RUN cp dozzle_key.pem shared_key.pem && cp dozzle_cert.pem shared_cert.pem
 
 # Copy assets built with node
 COPY --from=node /build/dist ./dist
@@ -52,7 +53,9 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 
 RUN mkdir /data
 
-FROM scratch
+FROM alpine:3.22
+
+RUN apk add --no-cache ca-certificates git docker-cli docker-cli-compose
 
 COPY --from=builder /data /data
 COPY --from=builder /tmp /tmp

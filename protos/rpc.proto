@@ -22,6 +22,10 @@ service AgentService {
   rpc ContainerAttach(stream ContainerAttachRequest) returns (stream ContainerAttachResponse) {}
   rpc UpdateNotificationConfig(UpdateNotificationConfigRequest) returns (UpdateNotificationConfigResponse) {}
   rpc GetNotificationStats(GetNotificationStatsRequest) returns (GetNotificationStatsResponse) {}
+  rpc DeployContainer(DeployContainerRequest) returns (DeployContainerResponse) {}
+  rpc GetDeployStatus(GetDeployStatusRequest) returns (GetDeployStatusResponse) {}
+  rpc GetDeployLogs(GetDeployLogsRequest) returns (GetDeployLogsResponse) {}
+  rpc GetRecentDeploys(GetRecentDeploysRequest) returns (GetRecentDeploysResponse) {}
 }
 
 message ListContainersRequest {
@@ -141,4 +145,68 @@ message GetNotificationStatsRequest {}
 
 message GetNotificationStatsResponse {
   repeated NotificationSubscriptionStats stats = 1;
+}
+
+message DeployContainerRequest {
+  string containerId = 1;
+  string projectPath = 2;
+  string repoUrl = 3;
+  string branch = 4;
+  string composeFile = 5;
+  string service = 6;
+  string gitUsername = 7;
+  string gitToken = 8;
+  bool bootstrap = 9;
+  string requestedBy = 10;
+}
+
+message DeployContainerResponse {
+  string runId = 1;
+}
+
+message GetDeployStatusRequest {
+  string runId = 1;
+}
+
+message GetDeployStatusResponse {
+  string runId = 1;
+  string containerId = 2;
+  string state = 3;
+  string message = 4;
+  google.protobuf.Timestamp startedAt = 5;
+  google.protobuf.Timestamp finishedAt = 6;
+  int32 exitCode = 7;
+}
+
+message GetDeployLogsRequest {
+  string runId = 1;
+  int32 offset = 2;
+}
+
+message GetDeployLogsResponse {
+  string runId = 1;
+  int32 offset = 2;
+  repeated string lines = 3;
+  int32 next = 4;
+  bool hasMore = 5;
+  bool done = 6;
+}
+
+message GetRecentDeploysRequest {
+  string containerId = 1;
+  int32 limit = 2;
+}
+
+message DeployRunStatus {
+  string runId = 1;
+  string containerId = 2;
+  string state = 3;
+  string message = 4;
+  google.protobuf.Timestamp startedAt = 5;
+  google.protobuf.Timestamp finishedAt = 6;
+  int32 exitCode = 7;
+}
+
+message GetRecentDeploysResponse {
+  repeated DeployRunStatus items = 1;
 }

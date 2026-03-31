@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/amir20/dozzle/internal/container"
+	"github.com/amir20/dozzle/internal/deploy"
 )
 
 type ContainerFilter = func(*container.Container) bool
@@ -29,4 +30,10 @@ type ClientService interface {
 	// Terminal
 	Attach(context.Context, container.Container, container.ExecEventReader, io.Writer) error
 	Exec(context.Context, container.Container, []string, container.ExecEventReader, io.Writer) error
+
+	// Deploy
+	Deploy(context.Context, container.Container, deploy.Request) (string, error)
+	DeployStatus(context.Context, string) (deploy.Status, error)
+	DeployLogs(context.Context, string, int) (deploy.LogChunk, error)
+	DeployRecent(context.Context, string, int) ([]deploy.Status, error)
 }

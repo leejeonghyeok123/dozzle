@@ -2,6 +2,7 @@ package k8s_support
 
 import (
 	"context"
+	"errors"
 	"io"
 	"sync"
 
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/amir20/dozzle/internal/container"
+	"github.com/amir20/dozzle/internal/deploy"
 	"github.com/amir20/dozzle/internal/k8s"
 )
 
@@ -188,4 +190,20 @@ func (k *K8sClientService) Exec(ctx context.Context, c container.Container, cmd 
 
 	wg.Wait()
 	return nil
+}
+
+func (k *K8sClientService) Deploy(ctx context.Context, c container.Container, req deploy.Request) (string, error) {
+	return "", errors.New("deploy is not supported for k8s mode")
+}
+
+func (k *K8sClientService) DeployStatus(ctx context.Context, runID string) (deploy.Status, error) {
+	return deploy.Status{}, errors.New("deploy is not supported for k8s mode")
+}
+
+func (k *K8sClientService) DeployLogs(ctx context.Context, runID string, offset int) (deploy.LogChunk, error) {
+	return deploy.LogChunk{}, errors.New("deploy is not supported for k8s mode")
+}
+
+func (k *K8sClientService) DeployRecent(ctx context.Context, containerID string, limit int) ([]deploy.Status, error) {
+	return nil, errors.New("deploy is not supported for k8s mode")
 }

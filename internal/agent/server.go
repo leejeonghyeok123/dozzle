@@ -14,6 +14,7 @@ import (
 
 	"github.com/amir20/dozzle/internal/agent/pb"
 	"github.com/amir20/dozzle/internal/container"
+	"github.com/amir20/dozzle/internal/deploy"
 	"github.com/amir20/dozzle/types"
 	"github.com/rs/zerolog/log"
 	orderedmap "github.com/wk8/go-ordered-map/v2"
@@ -23,6 +24,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 
 	"google.golang.org/grpc/status"
 )
@@ -53,6 +55,7 @@ type server struct {
 	service                   ClientService
 	version                   string
 	notificationConfigHandler NotificationConfigHandler
+	deployManager             *deploy.Manager
 
 	pb.UnimplementedAgentServiceServer
 }
@@ -66,6 +69,7 @@ func newServer(service ClientService, dozzleVersion string, notificationHandler 
 		service:                   service,
 		version:                   dozzleVersion,
 		notificationConfigHandler: notificationHandler,
+		deployManager:             deploy.NewManager(),
 	}
 }
 
@@ -461,6 +465,89 @@ func (s *server) GetNotificationStats(ctx context.Context, req *pb.GetNotificati
 	}
 
 	return &pb.GetNotificationStatsResponse{Stats: pbStats}, nil
+}
+
+func (s *server) DeployContainer(ctx context.Context, req *structpb.Struct) (*structpb.Struct, error) {
+	containerID := req.Fields["containerId"].GetStringValue()
+	c, err := s.service.FindContainer(ctx, containerID, container.ContainerLabels{})
+	if err != nil {
+		return nil, status.Error(codes.NotFound, err.Error())
+	}
+	runID, err := s.deployManager.Start(ctx, c, deploy.Request{
+		ContainerID: containerID,
+		ProjectPath: req.Fields["projectPath"].GetStringValue(),
+		RepoURL:     req.Fields["repoUrl"].GetStringValue(),
+		Branch:      req.Fields["branch"].GetStringValue(),
+		ComposeFile: req.Fields["composeFile"].GetStringValue(),
+		Service:     req.Fields["service"].GetStringValue(),
+		GitUsername: req.Fields["gitUsername"].GetStringValue(),
+		GitToken:    req.Fields["gitToken"].GetStringValue(),
+		Bootstrap:   req.Fields["bootstrap"].GetBoolValue(),
+		RequestedBy: req.Fields["requestedBy"].GetStringValue(),
+		AllowDisabled: true,
+	})
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	return structpb.NewStruct(map[string]any{"runId": runID})
+}
+
+func (s *server) GetDeployStatus(ctx context.Context, req *structpb.Struct) (*structpb.Struct, error) {
+	st, err := s.deployManager.Status(req.Fields["runId"].GetStringValue())
+	if err != nil {
+		return nil, status.Error(codes.NotFound, err.Error())
+	}
+	body := map[string]any{
+		"runId":       st.RunID,
+		"containerId": st.ContainerID,
+		"state":       string(st.State),
+		"message":     st.Message,
+		"startedAt":   st.StartedAt.Format(time.RFC3339Nano),
+		"exitCode":    st.ExitCode,
+	}
+	if st.FinishedAt != nil {
+		body["finishedAt"] = st.FinishedAt.Format(time.RFC3339Nano)
+	}
+	return structpb.NewStruct(body)
+}
+
+func (s *server) GetDeployLogs(ctx context.Context, req *structpb.Struct) (*structpb.Struct, error) {
+	chunk, err := s.deployManager.Logs(req.Fields["runId"].GetStringValue(), int(req.Fields["offset"].GetNumberValue()))
+	if err != nil {
+		return nil, status.Error(codes.NotFound, err.Error())
+	}
+	lines := make([]any, 0, len(chunk.Lines))
+	for _, line := range chunk.Lines {
+		lines = append(lines, line)
+	}
+	return structpb.NewStruct(map[string]any{
+		"runId":   chunk.RunID,
+		"offset":  chunk.Offset,
+		"lines":   lines,
+		"next":    chunk.Next,
+		"hasMore": chunk.HasMore,
+		"done":    chunk.Done,
+	})
+}
+
+func (s *server) GetRecentDeploys(ctx context.Context, req *structpb.Struct) (*structpb.Struct, error) {
+	items := s.deployManager.Recent(req.Fields["containerId"].GetStringValue(), int(req.Fields["limit"].GetNumberValue()))
+	rows := make([]any, 0, len(items))
+	for _, item := range items {
+		row := map[string]any{
+			"runId":       item.RunID,
+			"containerId": item.ContainerID,
+			"state":       string(item.State),
+			"message":     item.Message,
+			"startedAt":   item.StartedAt.Format(time.RFC3339Nano),
+			"exitCode":    item.ExitCode,
+		}
+		if item.FinishedAt != nil {
+			row["finishedAt"] = item.FinishedAt.Format(time.RFC3339Nano)
+		}
+		rows = append(rows, row)
+	}
+	return structpb.NewStruct(map[string]any{"items": rows})
 }
 
 func NewServer(service ClientService, certificates tls.Certificate, dozzleVersion string, notificationHandler NotificationConfigHandler) (*grpc.Server, error) {

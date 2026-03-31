@@ -15,6 +15,7 @@ import (
 
 	"github.com/amir20/dozzle/internal/agent/pb"
 	"github.com/amir20/dozzle/internal/container"
+	"github.com/amir20/dozzle/internal/deploy"
 	"github.com/amir20/dozzle/types"
 	"github.com/rs/zerolog/log"
 	orderedmap "github.com/wk8/go-ordered-map/v2"
@@ -25,6 +26,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 )
 
 type Client struct {
@@ -565,6 +567,123 @@ func (c *Client) GetNotificationStats(ctx context.Context) ([]types.Subscription
 		}
 	}
 	return stats, nil
+}
+
+func (c *Client) Deploy(ctx context.Context, req deploy.Request) (string, error) {
+	input, _ := structpb.NewStruct(map[string]any{
+		"containerId": req.ContainerID,
+		"projectPath": req.ProjectPath,
+		"repoUrl":     req.RepoURL,
+		"branch":      req.Branch,
+		"composeFile": req.ComposeFile,
+		"service":     req.Service,
+		"gitUsername": req.GitUsername,
+		"gitToken":    req.GitToken,
+		"bootstrap":   req.Bootstrap,
+		"requestedBy": req.RequestedBy,
+	})
+	resp, err := c.client.DeployContainer(ctx, input)
+	if err != nil {
+		return "", err
+	}
+	return resp.Fields["runId"].GetStringValue(), nil
+}
+
+func (c *Client) DeployStatus(ctx context.Context, runID string) (deploy.Status, error) {
+	input, _ := structpb.NewStruct(map[string]any{"runId": runID})
+	resp, err := c.client.GetDeployStatus(ctx, input)
+	if err != nil {
+		return deploy.Status{}, err
+	}
+	var finishedAt *time.Time
+	if v, ok := resp.Fields["finishedAt"]; ok && v.GetStringValue() != "" {
+		if t, err := time.Parse(time.RFC3339Nano, v.GetStringValue()); err == nil {
+			finishedAt = &t
+		}
+	}
+	startedAt := time.Now()
+	if v, ok := resp.Fields["startedAt"]; ok && v.GetStringValue() != "" {
+		if t, err := time.Parse(time.RFC3339Nano, v.GetStringValue()); err == nil {
+			startedAt = t
+		}
+	}
+	return deploy.Status{
+		RunID:       resp.Fields["runId"].GetStringValue(),
+		ContainerID: resp.Fields["containerId"].GetStringValue(),
+		State:       deploy.State(resp.Fields["state"].GetStringValue()),
+		Message:     resp.Fields["message"].GetStringValue(),
+		StartedAt:   startedAt,
+		FinishedAt:  finishedAt,
+		ExitCode:    int(resp.Fields["exitCode"].GetNumberValue()),
+	}, nil
+}
+
+func (c *Client) DeployLogs(ctx context.Context, runID string, offset int) (deploy.LogChunk, error) {
+	input, _ := structpb.NewStruct(map[string]any{
+		"runId":  runID,
+		"offset": offset,
+	})
+	resp, err := c.client.GetDeployLogs(ctx, input)
+	if err != nil {
+		return deploy.LogChunk{}, err
+	}
+	lines := make([]string, 0)
+	if list := resp.Fields["lines"].GetListValue(); list != nil {
+		for _, v := range list.Values {
+			lines = append(lines, v.GetStringValue())
+		}
+	}
+	return deploy.LogChunk{
+		RunID:   resp.Fields["runId"].GetStringValue(),
+		Offset:  int(resp.Fields["offset"].GetNumberValue()),
+		Lines:   lines,
+		Next:    int(resp.Fields["next"].GetNumberValue()),
+		HasMore: resp.Fields["hasMore"].GetBoolValue(),
+		Done:    resp.Fields["done"].GetBoolValue(),
+	}, nil
+}
+
+func (c *Client) DeployRecent(ctx context.Context, containerID string, limit int) ([]deploy.Status, error) {
+	input, _ := structpb.NewStruct(map[string]any{
+		"containerId": containerID,
+		"limit":       limit,
+	})
+	resp, err := c.client.GetRecentDeploys(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]deploy.Status, 0)
+	items := resp.Fields["items"].GetListValue()
+	if items == nil {
+		return result, nil
+	}
+	for _, raw := range items.Values {
+		obj := raw.GetStructValue()
+		if obj == nil {
+			continue
+		}
+		var finishedAt *time.Time
+		if v, ok := obj.Fields["finishedAt"]; ok && v.GetStringValue() != "" {
+			t, _ := time.Parse(time.RFC3339Nano, v.GetStringValue())
+			finishedAt = &t
+		}
+		startedAt := time.Now()
+		if v, ok := obj.Fields["startedAt"]; ok && v.GetStringValue() != "" {
+			if t, err := time.Parse(time.RFC3339Nano, v.GetStringValue()); err == nil {
+				startedAt = t
+			}
+		}
+		result = append(result, deploy.Status{
+			RunID:       obj.Fields["runId"].GetStringValue(),
+			ContainerID: obj.Fields["containerId"].GetStringValue(),
+			State:       deploy.State(obj.Fields["state"].GetStringValue()),
+			Message:     obj.Fields["message"].GetStringValue(),
+			StartedAt:   startedAt,
+			FinishedAt:  finishedAt,
+			ExitCode:    int(obj.Fields["exitCode"].GetNumberValue()),
+		})
+	}
+	return result, nil
 }
 
 func jsonBytesToOrderedMap(b []byte) *orderedmap.OrderedMap[string, any] {

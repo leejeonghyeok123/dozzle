@@ -1,0 +1,27 @@
+services:
+  dozzle:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dozzle-local:latest
+    container_name: dozzle-central
+    restart: unless-stopped
+    environment:
+      # Comma-separated remote agents
+      # - DOZZLE_REMOTE_AGENT=10.0.1.11:7007,10.0.1.12:7007
+      - DOZZLE_REMOTE_AGENT=host.docker.internal:7007
+      # Enable container start/stop/restart from UI
+      - DOZZLE_ENABLE_ACTIONS=true
+      # Optional: enable web terminal/exec
+      - DOZZLE_ENABLE_SHELL=false
+      # Optional hardening/noise reduction
+      - DOZZLE_NO_ANALYTICS=1
+      - DOZZLE_LEVEL=info
+      - DOZZLE_DEPLOY_SECRET_KEY=change-this-to-a-long-random-secret
+      # TLS cert used for mTLS with agents
+      - DOZZLE_CERT=/certs/dozzle_cert.pem
+      - DOZZLE_KEY=/certs/dozzle_key.pem
+    volumes:
+      - ./certs:/certs:ro
+    ports:
+      - "8090:8080"

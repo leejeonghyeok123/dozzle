@@ -9,6 +9,7 @@ import (
 
 	"github.com/amir20/dozzle/internal/agent"
 	"github.com/amir20/dozzle/internal/container"
+	"github.com/amir20/dozzle/internal/deploy"
 	"github.com/amir20/dozzle/types"
 	"github.com/rs/zerolog/log"
 )
@@ -90,4 +91,21 @@ func (a *agentService) UpdateNotificationConfig(ctx context.Context, subscriptio
 
 func (a *agentService) GetNotificationStats(ctx context.Context) ([]types.SubscriptionStats, error) {
 	return a.client.GetNotificationStats(ctx)
+}
+
+func (a *agentService) Deploy(ctx context.Context, c container.Container, req deploy.Request) (string, error) {
+	req.ContainerID = c.ID
+	return a.client.Deploy(ctx, req)
+}
+
+func (a *agentService) DeployStatus(ctx context.Context, runID string) (deploy.Status, error) {
+	return a.client.DeployStatus(ctx, runID)
+}
+
+func (a *agentService) DeployLogs(ctx context.Context, runID string, offset int) (deploy.LogChunk, error) {
+	return a.client.DeployLogs(ctx, runID, offset)
+}
+
+func (a *agentService) DeployRecent(ctx context.Context, containerID string, limit int) ([]deploy.Status, error) {
+	return a.client.DeployRecent(ctx, containerID, limit)
 }

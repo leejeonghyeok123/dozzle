@@ -1,0 +1,21 @@
+services:
+  dozzle-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dozzle-local:latest
+    container_name: dozzle-agent
+    command: agent
+    restart: unless-stopped
+    environment:
+      - DOZZLE_AGENT_ADDR=:7007
+      - DOZZLE_NO_ANALYTICS=1
+      - DOZZLE_LEVEL=info
+      # TLS cert used for mTLS with central dozzle
+      - DOZZLE_CERT=/certs/dozzle_cert.pem
+      - DOZZLE_KEY=/certs/dozzle_key.pem
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./certs:/certs:ro
+    ports:
+      - "7007:7007"
